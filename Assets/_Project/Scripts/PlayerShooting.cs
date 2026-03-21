@@ -25,7 +25,8 @@ public class PlayerShooting : MonoBehaviour
 
     [Header("Physics & Targeting")]
     public GameObject basketball;
-    public Vector3 targetHoopPos = new Vector3(0, 3.75f, 12f);
+    [Tooltip("The actual hoop/rim object (e.g., CircularRim) the player aims at.")]
+    public Transform hoopTransform; 
     
     [Header("Pickup Mechanics")]
     public float pickupDistance = 2.0f; 
@@ -38,20 +39,27 @@ public class PlayerShooting : MonoBehaviour
     
     private Rigidbody playerRb;
     private Rigidbody ballRb;
-    private SphereCollider ballCollider; // Added: Reference to the ball's collider
+    private SphereCollider ballCollider;
     private DribbleController dribbleScript;
 
     void Start()
     {
         playerRb = GetComponent<Rigidbody>();
         ballRb = basketball.GetComponent<Rigidbody>();
-        ballCollider = basketball.GetComponent<SphereCollider>(); // Added: Grabbing the collider
+        ballCollider = basketball.GetComponent<SphereCollider>(); 
         dribbleScript = basketball.GetComponent<DribbleController>();
         
+        // Failsafe: Try to grab the hoop from the movement script if not assigned
+        if (hoopTransform == null)
+        {
+            PlayerMovement move = GetComponent<PlayerMovement>();
+            if (move != null) hoopTransform = move.hoopTransform;
+        }
+
         if (meterParent != null) meterParent.SetActive(false);
         if (feedbackText != null) feedbackText.gameObject.SetActive(false);
 
-        // Optional safety check: Ensure the ball starts with physics disabled if the player starts with it
+        // Ensure ball physics are disabled if starting with the ball
         if (hasBall && ballCollider != null) 
         {
             ballCollider.enabled = false;
@@ -60,22 +68,27 @@ public class PlayerShooting : MonoBehaviour
 
     void Update()
     {
+        // 1. TIMERS
         if (!hasBall) timeSinceShot += Time.deltaTime;
 
+        // 2. AUTOMATIC PICKUP
         if (!hasBall && !isCharging && timeSinceShot > pickupCooldown)
         {
             float distToBall = Vector3.Distance(transform.position, basketball.transform.position);
             if (distToBall < pickupDistance) PickupBall();
         }
 
+        // 3. UI METER DYNAMICS
         if (hasBall && !isCharging) UpdateDynamicMeter();
 
+        // 4. INPUT HANDLING
         if (Keyboard.current.spaceKey.wasPressedThisFrame && hasBall && !isCharging)
             StartCharge();
 
         if (Keyboard.current.spaceKey.wasReleasedThisFrame && isCharging)
             ReleaseBall();
 
+        // 5. CHARGING LOGIC
         if (isCharging)
         {
             chargeTime += Time.deltaTime;
@@ -85,20 +98,25 @@ public class PlayerShooting : MonoBehaviour
                 fillImage.fillAmount = Mathf.Min(chargeTime / totalBarTime, 1f);
             }
 
+            // Force release if they hold too long (Airball territory)
             if (chargeTime > totalBarTime + 0.2f) ReleaseBall();
         }
     }
 
     void UpdateDynamicMeter()
     {
+        if (hoopTransform == null) return;
+
         Vector3 flatPlayer = new Vector3(transform.position.x, 0, transform.position.z);
-        Vector3 flatHoop = new Vector3(targetHoopPos.x, 0, targetHoopPos.z);
+        Vector3 flatHoop = new Vector3(hoopTransform.position.x, 0, hoopTransform.position.z);
         float distToHoop = Vector3.Distance(flatPlayer, flatHoop);
 
+        // Calculate the window size based on distance
         float distanceT = Mathf.Clamp01((distToHoop - closeDistance) / (farDistance - closeDistance));
         float safeMaxWindow = Mathf.Min(maxGreenWindow, totalBarTime * 0.9f);
         currentGreenWindow = Mathf.Lerp(safeMaxWindow, minGreenWindow, distanceT);
 
+        // Update UI Visuals
         if (targetZone != null)
         {
             float centerPct = perfectTime / totalBarTime;
@@ -123,19 +141,21 @@ public class PlayerShooting : MonoBehaviour
         
         if (meterParent != null) meterParent.SetActive(true);
         if (feedbackText != null) feedbackText.gameObject.SetActive(false); 
+        
+        // Visual feedback: a small hop when starting the shot
         playerRb.AddForce(Vector3.up * 6f, ForceMode.Impulse); 
     }
 
     void ReleaseBall()
     {
-        if (!isCharging) return;
+        if (!isCharging || hoopTransform == null) return;
         isCharging = false; 
         hasBall = false;
         timeSinceShot = 0f;
 
+        // ACCURACY CALCULATION
         float timeDiff = Mathf.Abs(chargeTime - perfectTime);
         float halfWindow = currentGreenWindow / 2f;
-        
         bool isPerfectRelease = timeDiff <= halfWindow;
 
         float accuracy = 1f;
@@ -147,31 +167,40 @@ public class PlayerShooting : MonoBehaviour
 
         EvaluateShotFeedback(isPerfectRelease, chargeTime, perfectTime, accuracy);
 
+        // PHYSICS RESET
         dribbleScript.enabled = false;
         
-        // --- PHYSICS WAKE-UP LOGIC ---
-        basketball.transform.SetParent(null); // Best practice unparenting
-        ballRb.isKinematic = false; // Turn on gravity/forces
-        if (ballCollider != null) ballCollider.enabled = true; // Turn on collisions!
+        // Prevent ball from bumping into player immediately
+        if (ballCollider != null && GetComponent<CapsuleCollider>() != null)
+        {
+            Physics.IgnoreCollision(ballCollider, GetComponent<CapsuleCollider>(), true);
+        }
 
+        basketball.transform.SetParent(null); 
+        ballRb.isKinematic = false; 
+        if (ballCollider != null) ballCollider.enabled = true; 
+
+        // TARGETING
         float finalAngle;
         Vector3 finalTarget = CalculateSmartTarget(out finalAngle);
-        
-        finalTarget += new Vector3(0, 0.25f, 0); 
 
+        // APPLY ATROCIOUS RANDOMNESS
         if (!isPerfectRelease)
         {
             float missSeverity = 1.0f - accuracy; 
-            float spreadRadius = 0.4f * missSeverity; 
+            float spreadRadius = 0.8f * missSeverity; // High spread for airballs
             
             float randomX = Random.Range(-spreadRadius, spreadRadius);
+            // randomY being negative makes the shot fall short (Airball)
+            float randomY = Random.Range(-spreadRadius, spreadRadius * 0.4f); 
             float randomZ = Random.Range(-spreadRadius, spreadRadius);
 
-            finalTarget += new Vector3(randomX, 0f, randomZ);
+            finalTarget += new Vector3(randomX, randomY, randomZ);
         }
 
-        Vector3 perfectVelocity = CalculateKinematicTrajectory(basketball.transform.position, finalTarget, finalAngle);
-        ballRb.AddForce(perfectVelocity, ForceMode.VelocityChange);
+        // SHOOT
+        Vector3 shotVelocity = CalculateKinematicTrajectory(basketball.transform.position, finalTarget, finalAngle);
+        ballRb.AddForce(shotVelocity, ForceMode.VelocityChange);
 
         StartCoroutine(HideMeterRoutine());
     }
@@ -185,33 +214,35 @@ public class PlayerShooting : MonoBehaviour
     Vector3 CalculateSmartTarget(out float launchAngle)
     {
         Vector3 flatPlayer = new Vector3(transform.position.x, 0, transform.position.z);
-        Vector3 flatHoop = new Vector3(targetHoopPos.x, 0, targetHoopPos.z);
+        Vector3 flatHoop = new Vector3(hoopTransform.position.x, 0, hoopTransform.position.z);
         float distToHoop = Vector3.Distance(flatPlayer, flatHoop);
-
+        
         Vector3 dirToHoop = (flatHoop - flatPlayer).normalized;
         float angleFromCenter = Vector3.SignedAngle(Vector3.forward, dirToHoop, Vector3.up);
 
-        Vector3 smartTarget = targetHoopPos;
+        // Base target is 0.15m above the rim center for a clean swish
+        Vector3 smartTarget = hoopTransform.position + new Vector3(0, 0.15f, 0);
 
         if (distToHoop <= closeDistance)
         {
+            // Inside the paint: Layups or high floaters
             if (Mathf.Abs(angleFromCenter) < 25f)
             {
                 launchAngle = 65f; 
-                smartTarget = targetHoopPos; 
             }
             else
             {
+                // Side bank shots
                 launchAngle = 60f;
                 float sideOffset = (angleFromCenter > 0) ? -0.25f : 0.25f; 
-                smartTarget = targetHoopPos + new Vector3(sideOffset, 0.45f, 0.3f); 
+                smartTarget += new Vector3(sideOffset, 0.45f, 0.3f); 
             }
         }
         else
         {
+            // Outside the paint: Jumpshots
             float t = Mathf.Clamp01((distToHoop - closeDistance) / (farDistance - closeDistance));
             launchAngle = Mathf.Lerp(55f, 45f, t);
-            smartTarget = targetHoopPos;
         }
 
         return smartTarget;
@@ -221,13 +252,18 @@ public class PlayerShooting : MonoBehaviour
     {
         hasBall = true;
         
-        // --- PHYSICS SLEEP LOGIC ---
         ballRb.linearVelocity = Vector3.zero;
         ballRb.angularVelocity = Vector3.zero;
-        ballRb.isKinematic = true; // Turn off gravity/forces
-        if (ballCollider != null) ballCollider.enabled = false; // Turn off collisions to prevent jitter!
+        ballRb.isKinematic = true; 
+        if (ballCollider != null) ballCollider.enabled = false; 
+
+        if (ballCollider != null && GetComponent<CapsuleCollider>() != null)
+        {
+            Physics.IgnoreCollision(ballCollider, GetComponent<CapsuleCollider>(), false);
+        }
 
         basketball.transform.parent = transform;
+        // Position relative to player hands
         basketball.transform.localPosition = new Vector3(0.5f, 1f, 0.5f); 
         dribbleScript.enabled = true;
         
@@ -275,12 +311,19 @@ public class PlayerShooting : MonoBehaviour
         float h = displacement.y;
         displacement.y = 0;
         float r = displacement.magnitude;
-        
+
         float a = angle * Mathf.Deg2Rad;
         float g = Mathf.Abs(Physics.gravity.y);
         
         float denominator = 2 * Mathf.Pow(Mathf.Cos(a), 2) * (r * Mathf.Tan(a) - h);
-        if (denominator <= 0) return Vector3.up * 5f; 
+        
+        // Failsafe: if the denominator is 0, the math breaks.
+        // This usually happens with a bad "atrocious" release. 
+        // We return a weak force to simulate the ball just falling out of the hands.
+        if (denominator <= 0) 
+        {
+            return (displacement.normalized + Vector3.up) * 4f; 
+        }
         
         float v = Mathf.Sqrt((g * r * r) / denominator);
         

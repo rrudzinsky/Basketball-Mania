@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6e894395f6424f45a34903e9ed4270d, type: 3}
+  m_Name: Earth
+  m_EditorClassIdentifier: Assembly-CSharp::WorldProfile
+  worldName: Earth
+  courtWidth: 15.24
+  courtLength: 28.65
+  courtFloorAppearance: {fileID: 0}
+  boundaryAppearance: {fileID: 0}
+  backboardAppearance: {fileID: 0}
+  backboardSize: {x: 1.83, y: 1.07}
+  rimRadius: 0.235
+  rimTubeRadius: 0.01
+  customHoopPrefab: {fileID: 6590945541128324619, guid: 3a0dd799d661d414c8171e8300790431, type: 3}
+  ballGravity: 9.81
+  courtFloorPhysics: {fileID: 13400000, guid: 3571bf32af3575c4fb79c97a7788e28f, type: 2}
+  backboardPhysics: {fileID: 13400000, guid: 0826aa7e9a3718741ba98aa030c1282c, type: 2}
+  rimPhysics: {fileID: 13400000, guid: 0ce5315e354514f4080d1b5de021e732, type: 2}

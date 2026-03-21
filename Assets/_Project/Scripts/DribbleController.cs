@@ -12,7 +12,9 @@ public class DribbleController : MonoBehaviour
     // This stores the ball's original position (the player's hand)
     private Vector3 handPosition;
 
-    void Start()
+    // CHANGED: OnEnable runs every time the script is turned from off to on.
+    // This perfectly captures the new hand position every time you pick up the ball!
+    void OnEnable()
     {
         // Remember where the ball started relative to the player
         handPosition = transform.localPosition;
