@@ -20,6 +20,19 @@ public class PlayerMovement : MonoBehaviour
         
         // Prevents the physics engine from tipping the player over
         rb.freezeRotation = true; 
+
+        // --- NEW: Find the dynamically spawned hoop ---
+        if (hoopTransform == null)
+        {
+            // Search the scene for the hoop the EnvironmentManager just spawned
+            GameObject foundHoop = GameObject.Find("Hoop_North"); 
+            
+            if (foundHoop != null)
+            {
+                hoopTransform = foundHoop.transform;
+            }
+        }
+        // ----------------------------------------------
     }
 
     // Unity's New Input System calls this automatically

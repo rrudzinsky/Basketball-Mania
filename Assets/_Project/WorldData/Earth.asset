@@ -15,8 +15,8 @@ MonoBehaviour:
   worldName: Earth
   courtWidth: 15.24
   courtLength: 28.65
-  courtFloorAppearance: {fileID: 0}
-  boundaryAppearance: {fileID: 0}
+  courtFloorAppearance: {fileID: 2100000, guid: 44199b921f873d940b1cf59064e3229e, type: 2}
+  boundaryAppearance: {fileID: 2100000, guid: a57e5c03f95a6b2409c0e2e8dd17709a, type: 2}
   backboardAppearance: {fileID: 0}
   backboardSize: {x: 1.83, y: 1.07}
   rimRadius: 0.235

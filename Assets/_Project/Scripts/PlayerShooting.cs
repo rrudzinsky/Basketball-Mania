@@ -25,8 +25,9 @@ public class PlayerShooting : MonoBehaviour
 
     [Header("Physics & Targeting")]
     public GameObject basketball;
-    [Tooltip("The actual hoop/rim object (e.g., CircularRim) the player aims at.")]
-    public Transform hoopTransform; 
+    
+    // Changed to private so it doesn't clutter the Inspector anymore!
+    private Transform hoopTransform; 
     
     [Header("Pickup Mechanics")]
     public float pickupDistance = 2.0f; 
@@ -49,12 +50,31 @@ public class PlayerShooting : MonoBehaviour
         ballCollider = basketball.GetComponent<SphereCollider>(); 
         dribbleScript = basketball.GetComponent<DribbleController>();
         
-        // Failsafe: Try to grab the hoop from the movement script if not assigned
+        // --- NEW: SMART AUTO-TARGETING ---
         if (hoopTransform == null)
         {
-            PlayerMovement move = GetComponent<PlayerMovement>();
-            if (move != null) hoopTransform = move.hoopTransform;
+            GameObject foundHoop = GameObject.Find("Hoop_North");
+            
+            if (foundHoop != null)
+            {
+                // Don't just aim at the hoop's origin point. Ask the HoopController where the Rim is!
+                HoopController hoopCtrl = foundHoop.GetComponent<HoopController>();
+                if (hoopCtrl != null && hoopCtrl.circularRimParent != null)
+                {
+                    hoopTransform = hoopCtrl.circularRimParent;
+                }
+                else
+                {
+                    // Fallback just in case
+                    hoopTransform = foundHoop.transform; 
+                }
+            }
+            else
+            {
+                Debug.LogWarning("PlayerShooting couldn't find 'Hoop_North' in the scene!");
+            }
         }
+        // ---------------------------------
 
         if (meterParent != null) meterParent.SetActive(false);
         if (feedbackText != null) feedbackText.gameObject.SetActive(false);
@@ -318,8 +338,6 @@ public class PlayerShooting : MonoBehaviour
         float denominator = 2 * Mathf.Pow(Mathf.Cos(a), 2) * (r * Mathf.Tan(a) - h);
         
         // Failsafe: if the denominator is 0, the math breaks.
-        // This usually happens with a bad "atrocious" release. 
-        // We return a weak force to simulate the ball just falling out of the hands.
         if (denominator <= 0) 
         {
             return (displacement.normalized + Vector3.up) * 4f; 
